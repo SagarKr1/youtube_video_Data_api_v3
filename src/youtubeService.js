@@ -69,6 +69,11 @@ export async function getChannel(channelId, signal) {
   return data.items[0];
 }
 
+export async function getVideo(videoId, signal) {
+  const data = await request('videos', { part: 'snippet,contentDetails,statistics', id: videoId }, signal);
+  return data.items?.[0] || null;
+}
+
 export async function fetchAllVideos(channel, onProgress, signal) {
   const playlistId = channel.contentDetails?.relatedPlaylists?.uploads;
   if (!playlistId) throw new YouTubeError('This channel does not expose a public uploads playlist.', 'unavailable');

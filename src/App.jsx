@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { fetchAllVideos, getChannel, searchChannels, YouTubeError } from './youtubeService.js';
+import WatchPage from './WatchPage.jsx';
 
 function formatCount(value) {
   if (value == null) return 'Hidden';
@@ -30,24 +31,25 @@ function ChannelChooser({ channels, onSelect }) {
   </section>;
 }
 
-function VideoCard({ video }) {
+function VideoCard({ video, onPlay }) {
   const snippet = video.snippet || {};
   const stats = video.statistics || {};
   const thumb = snippet.thumbnails?.high?.url || snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url;
   return <article className="video-card">
-    <a className="thumbnail" href={`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noreferrer" aria-label={`Watch ${snippet.title || 'video'} on YouTube`}>
+    <a className="thumbnail" href={`/watch/${video.id}`} target="_blank" rel="noreferrer" onClick={() => onPlay(video.id)} aria-label={`Play ${snippet.title || 'video'} in a new page`}>
       {thumb ? <img src={thumb} alt="" loading="lazy" /> : <div className="thumb-placeholder">▶</div>}
       <span className="duration">{formatDuration(video.contentDetails?.duration)}</span>
       <span className="play-icon">▶</span>
     </a>
     <div className="video-copy"><div className="video-date">{prettyDate(snippet.publishedAt)}</div><h3 title={snippet.title}>{snippet.title || 'Untitled video'}</h3>
       <div className="video-stats"><span>◉ {formatCount(stats.viewCount)} views</span>{stats.likeCount != null && <span>♡ {formatCount(stats.likeCount)}</span>}</div>
-      <a className="watch-link" href={`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noreferrer">Watch on YouTube <span>↗</span></a>
+      <a className="watch-link" href={`/watch/${video.id}`} target="_blank" rel="noreferrer" onClick={() => onPlay(video.id)}>Play in new page <span>↗</span></a>
     </div>
   </article>;
 }
 
 export default function App() {
+  if (window.location.pathname.startsWith('/watch/')) return <WatchPage />;
   const [input, setInput] = useState('');
   const [channels, setChannels] = useState([]);
   const [channel, setChannel] = useState(null);
@@ -114,6 +116,18 @@ export default function App() {
       ? `Loading video details · ${progress.fetched.toLocaleString()} of ${progress.total.toLocaleString()}`
       : 'Loading channel…';
 
+  function openWatchPage(videoId) {
+    const suggestions = videos.filter((video) => video.id !== videoId).slice(0, 12).map((video) => ({
+      id: video.id,
+      title: video.snippet?.title || 'Untitled video',
+      thumbnail: video.snippet?.thumbnails?.medium?.url || video.snippet?.thumbnails?.default?.url || '',
+      publishedAt: video.snippet?.publishedAt || '',
+      duration: video.contentDetails?.duration || '',
+      views: video.statistics?.viewCount || '0',
+    }));
+    try { window.localStorage.setItem('channelscope-suggestions', JSON.stringify(suggestions)); } catch { /* Suggestions are optional when storage is unavailable. */ }
+  }
+
   return <main className="app-shell">
     <header className="topbar"><a className="brand" href="#top"><span className="brand-mark">▶</span><span>Channel<span className="brand-muted">scope</span></span></a><span className="topbar-note">YOUTUBE DATA EXPLORER</span></header>
     <div className="content" id="top">
@@ -130,7 +144,7 @@ export default function App() {
         <section className="channel-panel panel"><div className="channel-avatar">{channel.snippet?.thumbnails?.medium?.url ? <img src={channel.snippet.thumbnails.medium.url} alt={`${channel.snippet.title} profile`} /> : <span>{channel.snippet?.title?.[0] || 'Y'}</span>}</div><div className="channel-main"><span className="eyebrow">CHANNEL OVERVIEW</span><h2>{channel.snippet?.title}</h2><p>{channel.snippet?.description || 'This channel has no public description.'}</p><div className="channel-stats"><span><strong>{formatCount(channel.statistics?.subscriberCount)}</strong><small>Subscribers</small></span><i/><span><strong>{formatCount(channel.statistics?.videoCount)}</strong><small>Channel videos</small></span><i/><span><strong>{videos.length.toLocaleString()}</strong><small>Fetched here</small></span></div></div><div className="verified-mark" title="Public channel">✓</div></section>
         <section className="videos-section"><div className="section-heading videos-heading"><div><span className="eyebrow">THE LIBRARY</span><h2>Uploaded videos <span className="count-pill">{videos.length.toLocaleString()}</span></h2></div><span className="completion-label">{fetching ? <><span className="live-dot"/> FETCHING</> : partial ? 'PARTIAL RESULTS' : videos.length ? 'ALL AVAILABLE UPLOADS' : 'READY'}</span></div>
           {videos.length > 0 && <div className="toolbar"><label className="filter-input"><span>⌕</span><input value={query} onChange={(e) => { setQuery(e.target.value); setVisible(24); }} placeholder="Filter videos by title…" /></label><label className="sort-select"><span>Sort by</span><select value={sort} onChange={(e) => setSort(e.target.value)}><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="mostViewed">Most viewed</option><option value="leastViewed">Least viewed</option></select></label></div>}
-          {videos.length > 0 ? <><div className="video-grid">{shown.slice(0, visible).map((video) => <VideoCard key={video.id} video={video} />)}</div>{shown.length > visible && <button className="load-more" onClick={() => setVisible((n) => n + 24)}>Show more videos <span>↓</span><small>{(shown.length - visible).toLocaleString()} remaining</small></button>}{shown.length === 0 && <div className="empty-state">No videos match “{query}”.</div>}</> : !fetching && !error && <div className="empty-state">This channel has no publicly available uploads.</div>}
+          {videos.length > 0 ? <><div className="video-grid">{shown.slice(0, visible).map((video) => <VideoCard key={video.id} video={video} onPlay={openWatchPage} />)}</div>{shown.length > visible && <button className="load-more" onClick={() => setVisible((n) => n + 24)}>Show more videos <span>↓</span><small>{(shown.length - visible).toLocaleString()} remaining</small></button>}{shown.length === 0 && <div className="empty-state">No videos match “{query}”.</div>}</> : !fetching && !error && <div className="empty-state">This channel has no publicly available uploads.</div>}
         </section>
       </>}
 
